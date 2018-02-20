@@ -58,6 +58,10 @@ class Navigation(CoActor):
 
         print("[NAV] Taking off!")
         self.vehicle.set_mode("GUIDED")
+        self.vehicle.takeoff(20) # meters
+        while True:
+            await self.sleep(1)
+            print("Altitude: {}".format(self.vehicle.location_global_relative_frame.alt))
 
 
     async def msg_shutdown(self, msg, sender):

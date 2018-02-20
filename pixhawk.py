@@ -5,6 +5,7 @@ from messages import Initialize
 import copy
 from coactor import CoActor, Future
 from dronekit import VehicleMode
+from pymavlink import mavutil
 
 from dk import *
 
@@ -92,6 +93,13 @@ class Pixhawk(CoActor):
             # after converting it into that weird VehicleMode
             self.send(self.dk_addr,
                 DronekitSetAttr('mode', VehicleMode(msg.args[0])))
+        elif cmd == "takeoff":
+            # send TAKEOFF command and get drone to specified altitude
+            altitude = float(msg.args[0])
+            mcmd = (0, 0, mavutil.mavlink.MAV_CMD_NAV_TAKEOFF,
+                    0, 0, 0, 0, 0, 0, 0, altitude)
+            self.send(self.dk_addr,
+                DronekitSendCommand("command_long", *mcmd))
 
 # proxy for the vehicle
 # receives PixhawkUpdates to update its parameters
@@ -115,7 +123,7 @@ class VehicleProxy:
 
     def _update_attr(self, attr, value):
         # update the parameter in question
-        setattr(self, attr, value)
+        setattr(self, attr.replace(".", "_"), value)
         self._attr_updated[attr] = True
         # and call any callbacks
         cb = []
@@ -174,3 +182,7 @@ class VehicleProxy:
     def set_mode(self, mode):
         self.actor.send(self.pixhawk_addr,
             PixhawkProxyCommand("mode", mode))
+
+    def takeoff(self, altitude):
+        self.actor.send(self.pixhawk_addr,
+            PixhawkProxyCommand("takeoff", altitude))

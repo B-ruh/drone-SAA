@@ -67,7 +67,7 @@ class Dronekit:
                     msg.attr, msg.value)
             elif isinstance(msg, DronekitSendCommand):
                 enc = getattr(self.vehicle.message_factory,
-                    msg.cmd+"encode")
+                    msg.cmd+"_encode")
                 encmsg = enc(*msg.args)
                 self.vehicle.send_mavlink(encmsg)
 
