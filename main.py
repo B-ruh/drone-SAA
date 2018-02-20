@@ -4,9 +4,12 @@ from thespian.actors import *
 from messages import Initialize
 import time
 
+from dk import Dronekit
+from pixhawk import PixhawkStartDronekit
+
 if __name__ == "__main__":
     # start up actor system
-    asys = ActorSystem("multiprocTCPBase", transientUnique=True)
+    asys = ActorSystem("multiprocTCPBase")
 
     try:
         # instantiate navigation processor
@@ -14,9 +17,12 @@ if __name__ == "__main__":
         # tell it to start up
         asys.tell(nav, Initialize())
 
-        # do nothing, program is now working
+        # wait for certain messages
         while True:
-            time.sleep(1)
+            msg = asys.listen()
+            if isinstance(msg, PixhawkStartDronekit):
+                dk = Dronekit()
+                dk.start('tcp:127.0.0.1:5760', msg.addr, asys)
     finally:
         # clean up everything
         # if this isn't called, Python processes will start to build up
