@@ -8,15 +8,15 @@ from thespian.actors import ActorSystem
 class DronekitSetVariable:
     pass
 
-class DronekitUpdate:
+class DronekitReady:
+    pass
+
+class PixhawkUpdate:
     def __init__(self, attr_name, value):
         self.attr_name = attr_name
         self.value = value
     def __repr__(self):
         return "{} = {}".format(self.attr_name, self.value)
-
-class DronekitReady:
-    pass
 
 # Dronekit gets its own thread
 class Dronekit:
@@ -59,4 +59,4 @@ class Dronekit:
             # todo: figure out how to send these without dying
             # of pickle errors
             return
-        self.hsys.tell(self.actor, DronekitUpdate(attr_name, value))
+        self.hsys.tell(self.actor, PixhawkUpdate(attr_name, value))
