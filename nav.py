@@ -4,7 +4,7 @@ from thespian.actors import *
 from messages import Initialize
 import copy
 
-from coactor import CoActor
+from coactor import CoActor, Future
 from pixhawk import *
 
 class Navigation(CoActor):
@@ -26,11 +26,21 @@ class Navigation(CoActor):
         self.send(self.pixhawk, Initialize(**self.init_data))
 
         # now create a vehicle proxy
-        self.vehicle = VehicleProxy(self.pixhawk)
+        self.vehicle = VehicleProxy(self, self.pixhawk)
         # register update callback
         self.register_cb(PixhawkUpdate, self.vehicle.process_update)
         # and request updates
         self.send(self.pixhawk, PixhawkUpdateRequest())
+
+        # create a test future
+        fut = Future(self)
+        # register a gps status update
+        self.vehicle.register_cb("gps_0", lambda a, m: fut.set_result(m), True)
+        # and wait for it to come
+        await fut
+        # now that it has come, share it
+        print("gps_0: {}".format(fut.result))
+
         
         print("[NAV] Done!")
         # unregister init callback

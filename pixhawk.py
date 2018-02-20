@@ -67,10 +67,22 @@ class Pixhawk(CoActor):
 # has methods to send commands to the Pixhawk manager as well
 # and can call callbacks when specific paramters are updated
 class VehicleProxy:
-    def __init__(self, pixhawk_addr):
+    def __init__(self, actor, pixhawk_addr):
+        self.actor = actor
+        self.pixhawk_addr = pixhawk_addr
         self._callbacks = []
 
     async def process_update(self, msg, sender):
         # update the parameter in question
         setattr(self, msg.attr_name, msg.value)
+        # and call any callbacks
+        cb = []
+        for attr_name, fn, once in self._callbacks:
+            if attr_name == msg.attr_name:
+                self.actor.call_soon(lambda: fn(attr_name, msg.value))
+                if once: continue
+            cb.append((attr_name, fn, once))
+        self._callbacks = cb
 
+    def register_cb(self, attr_name, fn, once=False):
+        self._callbacks.append((attr_name, fn, once))

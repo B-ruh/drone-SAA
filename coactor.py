@@ -3,6 +3,7 @@
 from thespian.actors import *
 import traceback
 from datetime import timedelta
+import inspect
 
 class CoActor(Actor):
     # class that yields message information when awaited
@@ -12,12 +13,18 @@ class CoActor(Actor):
         def __await__(self):
             return (yield self)
 
+    # dummy message for call_soon
+    class CallSoon:
+        pass
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         # initialize our own state
         self._callbacks = []
         self._pending_coros = {}
+        self._call_soon = []
+        self._call_soon_sent = False
 
     def receiveMessage(self, msg, sender):
         # we've got a message
@@ -28,6 +35,35 @@ class CoActor(Actor):
         # the message twice
         new_coros = []
 
+        def send_coro(coro, obj):
+            try:
+                wobj = coro.send(obj)
+            except StopIteration:
+                wobj = None
+            except:
+                # oh heck
+                traceback.print_exc()
+                return
+            if wobj is not None:
+                new_coros.append((wobj, coro))
+
+        # 0th step: execute the call soon callbacks
+        if isinstance(msg, CoActor.CallSoon):
+            self._call_soon_sent = False
+            was_handled = True
+
+        if len(self._call_soon) > 0:
+            cs = self._call_soon
+            self._call_soon = []
+            for coro in cs:
+                if hasattr(coro, 'send'):
+                    send_coro(coro, None)
+                elif not inspect.iscoroutinefunction(coro):
+                    #print("called it!")
+                    coro()
+                else:
+                    send_coro(coro(), None)
+
         # first step: see if any callbacks need to be processed
         for mtype, cb in self._callbacks:
             if isinstance(msg, mtype):
@@ -35,19 +71,7 @@ class CoActor(Actor):
                 # call the callback and get a coroutine
                 coro = cb(msg, sender)
                 # now send it to get it running
-                try:
-                    msgwaiter = coro.send(None)
-                except StopIteration:
-                    # oh, the coroutine finished already
-                    msgwaiter = None
-                except:
-                    # oh heck
-                    traceback.print_exc()
-                    continue
-                if msgwaiter is not None:
-                    # stash the coro so it's called when
-                    # its next message comes in
-                    new_coros.append((msgwaiter, coro))
+                send_coro(coro, None)
 
         # second step: see if any coros were waiting on that message
         if type(msg) in self._pending_coros:
@@ -56,26 +80,19 @@ class CoActor(Actor):
             for coro in coros:
                 was_handled = True
                 # send the new message into the coroutine
-                try:
-                    msgwaiter = coro.send((msg, sender))
-                except StopIteration:
-                    # coroutine is finished
-                    msgwaiter = None
-                except:
-                    # oh heck
-                    traceback.print_exc()
-                    continue
-                if msgwaiter is not None:
-                    # stash the coro so it's called when
-                    # its next message comes in
-                    new_coros.append((msgwaiter, coro))
+                send_coro(coro, (msg, sender))
         
         # third step: prepare the coros for next message
-        for msgwaiter, coro in new_coros:
-            mtype = msgwaiter.mtype
-            if mtype not in self._pending_coros:
-                self._pending_coros[mtype] = []
-            self._pending_coros[mtype].append(coro)
+        for wobj, coro in new_coros:
+            if isinstance(wobj, CoActor.MessageWaiter):
+                mtype = wobj.mtype
+                if mtype not in self._pending_coros:
+                    self._pending_coros[mtype] = []
+                self._pending_coros[mtype].append(coro)
+            elif isinstance(wobj, Future):
+                wobj._waiters.append(coro)
+            else:
+                raise Exception("weird coro: {}".format(coro))
 
         if not was_handled:
             print("{} didn't handle: {}, {}".format(self.myAddress, msg, sender))
@@ -111,3 +128,37 @@ class CoActor(Actor):
             # make sure it's one we want
             if validator is None or validator(msg, sender):
                 return msg, sender
+
+    # schedule a coroutine to be called
+    def call_soon(self, coro):
+        # append it to call soon list
+        self._call_soon.append(coro)
+        # and send a call soon message to trig ger the call
+        # (assuming we haven't sent one since the last time)
+        if not self._call_soon_sent:
+            self._call_soon_sent = True
+            self.send(self.myAddress, CoActor.CallSoon())
+
+# basic implementation of futures for CoActors
+# set its result to alert all waiters
+# await it to get its result
+class Future:
+    def __init__(self, actor):
+        self.actor = actor
+        self._waiters = []
+
+        self.has_result = False
+        self.result = None
+
+    # tell the future the result
+    def set_result(self, result):
+        self.result = result
+        self.has_result = True
+        # unwait everybody who was waiting on us
+        for waiter in self._waiters:
+            self.actor.call_soon(waiter)
+        self._waiters = []
+
+    def __await__(self):
+        yield self
+        return self.result
