@@ -32,19 +32,20 @@ class Navigation(CoActor):
         # and request updates
         self.send(self.pixhawk, PixhawkUpdateRequest())
 
-        # create a test future
-        fut = Future(self)
-        # register a gps status update
-        self.vehicle.register_cb("gps_0", lambda a, m: fut.set_result(m), True)
-        # and wait for it to come
-        await fut
-        # now that it has come, share it
-        print("gps_0: {}".format(fut.result))
-
-        
         print("[NAV] Done!")
         # unregister init callback
         self.unregister_cb(Initialize, self.msg_init)
+
+        # and schedule main loop
+        self.call_soon(self.nav)
+
+    async def nav(self):
+        await self.vehicle.wait_ready()
+        print("[NAV] Beginning main loop")
+        while True:
+            await self.vehicle.wait_for_next('mode')
+            print("The new mode is: {}".format(self.vehicle.mode))
+
 
     async def msg_shutdown(self, msg, sender):
         print("[NAV] Shutdown")

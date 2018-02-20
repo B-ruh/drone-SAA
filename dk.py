@@ -5,8 +5,20 @@ import threading
 from dronekit import *
 from thespian.actors import ActorSystem
 
-class DronekitSetVariable:
-    pass
+# set a specific vehicle attribute
+class DronekitSetAttr:
+    def __init__(self, attr, value):
+        self.attr = attr
+        self.value = value
+
+# send a MAVLink command
+# cmd = "command_long"
+# *args = [0, 0, 1, 3] etc
+# -> vehicle.send_mavlink(vehicle.message_factory.command_long_encode(*args))
+class DronekitSendCommand:
+    def __init__(self, cmd, *args):
+        self.cmd = cmd
+        self.args = args
 
 class DronekitReady:
     pass
@@ -38,9 +50,10 @@ class Dronekit:
         self.psys = self.psys.__enter__()
 
         # start dronekit
-        self.vehicle = connect(connection_string)
+        self.vehicle = connect(connection_string, _initialize=False)
         # observe EVERYTHING!!!
         self.vehicle.add_attribute_listener('*', self.attr_handler)
+        self.vehicle.initialize(4, 30)
 
         self.vehicle.wait_ready()
         # send message saying we're ready
@@ -49,6 +62,14 @@ class Dronekit:
         # and enter receive loop
         while True:
             msg = self.psys.listen(0.1)
+            if isinstance(msg, DronekitSetAttr):
+                setattr(self.vehicle,
+                    msg.attr, msg.value)
+            elif isinstance(msg, DronekitSendCommand):
+                enc = getattr(self.vehicle.message_factory,
+                    msg.cmd+"encode")
+                encmsg = enc(*msg.args)
+                self.vehicle.send_mavlink(encmsg)
 
     def attr_handler(self, vehicle, attr_name, value):
         # the handler gets another system context because it's on another thread
@@ -58,5 +79,6 @@ class Dronekit:
         if attr_name in ("parameters", "location", "channels"):
             # todo: figure out how to send these without dying
             # of pickle errors
-            return
+            value = "hi this doesn;t work yet"
+
         self.hsys.tell(self.actor, PixhawkUpdate(attr_name, value))
