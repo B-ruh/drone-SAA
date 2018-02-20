@@ -172,6 +172,13 @@ class VehicleProxy:
 
         await self.wait_for(attrs)
 
+    async def wait_until(self, attr, fn):
+        if attr not in self._attr_updated:
+            await self.wait_for_next(attr)
+        ga = attr.replace(".", "_")
+        while not fn(getattr(self, ga)):
+            await self.wait_for_next(attr)
+
     async def arm_motors(self, arm):
         self.actor.send(self.pixhawk_addr,
             PixhawkProxyCommand("arm", arm))
@@ -192,3 +199,7 @@ class VehicleProxy:
         while abs((curr_alt-altitude)/altitude) > 0.05:
             await self.wait_for_next("location.global_relative_frame")
             curr_alt = self.location_global_relative_frame.alt
+
+    def stop_now(self):
+        # set mode to BRAKE
+        self.set_mode("BRAKE")
