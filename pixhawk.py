@@ -183,6 +183,12 @@ class VehicleProxy:
         self.actor.send(self.pixhawk_addr,
             PixhawkProxyCommand("mode", mode))
 
-    def takeoff(self, altitude):
+    async def takeoff(self, altitude):
         self.actor.send(self.pixhawk_addr,
             PixhawkProxyCommand("takeoff", altitude))
+
+        curr_alt = self.location_global_relative_frame.alt
+        if curr_alt < 0.01: curr_alt = 0.01
+        while abs((curr_alt-altitude)/altitude) > 0.05:
+            await self.wait_for_next("location.global_relative_frame")
+            curr_alt = self.location_global_relative_frame.alt

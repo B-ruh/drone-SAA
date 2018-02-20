@@ -42,26 +42,34 @@ class Navigation(CoActor):
     async def nav(self):
         await self.vehicle.wait_ready()
         print("[NAV] Testing liftoff")
-        await self.takeoff_then_land()
+        await self.takeoff()
 
         print("[NAV] Beginning main loop")
         while True:
             await self.vehicle.wait_for_next('mode')
             print("The new mode is: {}".format(self.vehicle.mode))
 
-    async def takeoff_then_land(self):
-        print("[NAV] Waiting for vehicle to be armable")
+    async def takeoff(self):
+        #print("[NAV] Waiting for vehicle to be armable")
         # maybe should actually do this
+
+        if self.vehicle.armed:
+            print("[NAV] Returning to launch")
+            self.vehicle.set_mode("RTL")
+            while self.vehicle.armed:
+                await self.vehicle.wait_for_next('armed')
+
+        self.vehicle.set_mode("STABILIZE")
 
         print("[NAV] Arming motors")
         await self.vehicle.arm_motors(True)
 
         print("[NAV] Taking off!")
         self.vehicle.set_mode("GUIDED")
-        self.vehicle.takeoff(20) # meters
-        while True:
-            await self.sleep(1)
-            print("Altitude: {}".format(self.vehicle.location_global_relative_frame.alt))
+        await self.vehicle.takeoff(20) # meters
+
+        print("[NAV] Beginning mission")
+        self.vehicle.set_mode("AUTO")
 
 
     async def msg_shutdown(self, msg, sender):
