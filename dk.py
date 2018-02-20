@@ -49,15 +49,15 @@ class Dronekit:
         # it's a context manager, so enter it to get the interactable object
         self.psys = self.psys.__enter__()
 
+        # send message saying we're ready
+        self.psys.tell(self.actor, DronekitReady())
+
         # start dronekit
         self.vehicle = connect(connection_string, _initialize=False)
         # observe EVERYTHING!!!
         self.vehicle.add_attribute_listener('*', self.attr_handler)
         self.vehicle.initialize(4, 30)
-
-        self.vehicle.wait_ready()
-        # send message saying we're ready
-        self.psys.tell(self.actor, DronekitReady())
+        
 
         # and enter receive loop
         while True:

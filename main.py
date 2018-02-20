@@ -22,7 +22,7 @@ if __name__ == "__main__":
             msg = asys.listen()
             if isinstance(msg, PixhawkStartDronekit):
                 dk = Dronekit()
-                dk.start('tcp:127.0.0.1:5760', msg.addr, asys)
+                dk.start('tcp:127.0.0.1:5763', msg.addr, asys)
     finally:
         # clean up everything
         # if this isn't called, Python processes will start to build up

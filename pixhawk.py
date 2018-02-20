@@ -4,6 +4,7 @@ from thespian.actors import *
 from messages import Initialize
 import copy
 from coactor import CoActor, Future
+from dronekit import VehicleMode
 
 from dk import *
 
@@ -43,17 +44,21 @@ class Pixhawk(CoActor):
         # register callback for messages
         self.register_cb(PixhawkUpdate, self.msg_dk_update)
         self.register_cb(PixhawkUpdateRequest, self.msg_update_req)
-        
+
         # tell the main actor system it's time to start dronekit
         self.send(self.init_data["actor_system"],
             PixhawkStartDronekit(self.myAddress))
 
         # wait for it to be ready
-        await self.wait_msg(DronekitReady)
+        msg, sender = await self.wait_msg(DronekitReady)
+        self.dk_addr = sender
         
         print("[PIX] Done!")
         # unregister init callback
         self.unregister_cb(Initialize, self.msg_init)
+        # register proxy message callback
+        self.register_cb(PixhawkProxyCommand, self.msg_proxy_cmd)
+        
 
     async def msg_shutdown(self, msg, sender):
         print("[PIX] Shutdown")
@@ -75,6 +80,18 @@ class Pixhawk(CoActor):
         else:
             if sender in self.updatees:
                 self.updatees.remove(sender)
+
+    async def msg_proxy_cmd(self, msg, sender):
+        cmd = msg.cmd
+        if cmd == "arm":
+            # flip armed to the specified value
+            self.send(self.dk_addr,
+                DronekitSetAttr('armed', msg.args[0]))
+        elif cmd == "mode":
+            # set mode to the specified value,
+            # after converting it into that weird VehicleMode
+            self.send(self.dk_addr,
+                DronekitSetAttr('mode', VehicleMode(msg.args[0])))
 
 # proxy for the vehicle
 # receives PixhawkUpdates to update its parameters
@@ -146,3 +163,14 @@ class VehicleProxy:
             self._attr_updated[attr] = False
 
         await self.wait_for(attrs)
+
+    async def arm_motors(self, arm):
+        self.actor.send(self.pixhawk_addr,
+            PixhawkProxyCommand("arm", arm))
+
+        while self.armed != arm:
+            await self.wait_for_next('armed')
+
+    def set_mode(self, mode):
+        self.actor.send(self.pixhawk_addr,
+            PixhawkProxyCommand("mode", mode))
