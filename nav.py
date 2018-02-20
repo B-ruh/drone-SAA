@@ -58,6 +58,9 @@ class Navigation(CoActor):
         async def do_a_stop():
             await self.sleep(20)
             self.send(self.myAddress, DroneInDanger(True))
+            #await self.vehicle.wait_until('heading', lambda a: a < 300)
+            await self.sleep(5)
+            self.send(self.myAddress, DroneInDanger(False))
 
         self.call_soon(do_a_stop)
 
@@ -70,10 +73,25 @@ class Navigation(CoActor):
             await self.vehicle.wait_until('airspeed',
                 lambda s: s < 0.1)
 
-            print("[NAV] Stopped")
+            print("[NAV] Stopped, looking around")
+            self.vehicle.set_mode("GUIDED")
+            await self.vehicle.wait_for_next('heading')
+            heading = self.vehicle.heading
+            while heading > 0:
+                heading -= 10
+                self.vehicle.set_heading(heading % 360)
+                await self.vehicle.wait_until('heading',
+                    # will mess up around a circle
+                    # but fine for testing
+                    lambda h: h-(heading%360) < 2)
+                if not self.in_danger:
+                    break
 
-            self.send(self.myAddress, DroneInDanger(False))
-            await self.wait_for_next_danger()
+            print("[NAV] Moving beside the obstacle...")
+            # do 5 meters forward or so by default
+            self.vehicle.move_rel_body(5, 0, 0)
+            await self.sleep(5) # wait for it to happen
+
             print("[NAV] Okay, it's clear...")
             self.vehicle.set_mode("AUTO")
 

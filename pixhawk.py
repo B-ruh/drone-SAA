@@ -100,6 +100,32 @@ class Pixhawk(CoActor):
                     0, 0, 0, 0, 0, 0, 0, altitude)
             self.send(self.dk_addr,
                 DronekitSendCommand("command_long", *mcmd))
+        elif cmd == "heading":
+            # send YAW command to change the heading
+            # we always use it in non-relative
+            mcmd = (0, 0,    # target system, target component
+                    mavutil.mavlink.MAV_CMD_CONDITION_YAW, #command
+                    0, #confirmation
+                    msg.args[0],    # param 1, yaw in degrees
+                    0,          # param 2, yaw speed deg/s
+                    1,          # param 3, direction -1 ccw, 1 cw
+                    0, # param 4, relative offset 1, absolute angle 0
+                    0, 0, 0)
+            self.send(self.dk_addr,
+                DronekitSendCommand("command_long", *mcmd))
+        elif cmd == "move_ned_body_offset":
+            # send position command in NED space
+            # relative to current position
+            mcmd = (0,       # time_boot_ms (not used)
+                0, 0,    # target system, target component
+                mavutil.mavlink.MAV_FRAME_BODY_OFFSET_NED, # frame
+                0b0000111111111000, # type_mask (only positions enabled)
+                msg.args[0], msg.args[1], msg.args[2],
+                0, 0, 0, # x, y, z velocity in m/s  (not used)
+                0, 0, 0, # x, y, z acceleration (not supported yet, ignored in GCS_Mavlink)
+                0, 0)    # yaw, yaw_rate (not supported yet, ignored in GCS_Mavlink)
+            self.send(self.dk_addr,
+                DronekitSendCommand("set_position_target_local_ned", *mcmd))
 
 # proxy for the vehicle
 # receives PixhawkUpdates to update its parameters
@@ -203,3 +229,11 @@ class VehicleProxy:
     def stop_now(self):
         # set mode to BRAKE
         self.set_mode("BRAKE")
+
+    def set_heading(self, heading):
+        self.actor.send(self.pixhawk_addr,
+            PixhawkProxyCommand("heading", heading))
+
+    def move_rel_body(self, forward, right, down):
+        self.actor.send(self.pixhawk_addr,
+            PixhawkProxyCommand("move_ned_body_offset", forward, right, down))
