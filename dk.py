@@ -3,7 +3,6 @@
 
 import threading
 from dronekit import *
-from thespian.actors import ActorSystem
 
 # set a specific vehicle attribute
 class DronekitSetAttr:
