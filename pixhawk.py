@@ -6,6 +6,7 @@ import copy
 from coactor import CoActor, Future
 from dronekit import VehicleMode
 from pymavlink import mavutil
+from functools import partial as curry
 
 from dk import *
 
@@ -155,7 +156,7 @@ class VehicleProxy:
         cb = []
         for attr_name, fn, once in self._callbacks:
             if attr_name == attr:
-                self.actor.call_soon(lambda: fn(attr, value))
+                self.actor.call_soon(curry(fn, attr, value))
                 if once: continue
             cb.append((attr_name, fn, once))
         self._callbacks = cb
@@ -172,6 +173,14 @@ class VehicleProxy:
         if isinstance(attrs, str):
             attrs = (attrs,)
 
+        # helper to make a callback for the future
+        # needed because closing over a loop variable only uses the 
+        # last iteration's value
+        def make_wait_cb(fut):
+            def wait_cb(a, v):
+                fut.set_result((a, v))
+            return wait_cb
+
         futs = []
         for attr in attrs:
             # is this one already ready? if so, continue
@@ -179,7 +188,7 @@ class VehicleProxy:
             # create a Future for this attribute
             fut = Future(self.actor)
             # that will get its result when the attribute comes in
-            self.register_cb(attr, lambda a, v: fut.set_result((a, v)), True)
+            self.register_cb(attr, make_wait_cb(fut), True)
             futs.append(fut)
 
         # now wait for all the futures to have a result
@@ -227,7 +236,7 @@ class VehicleProxy:
             curr_alt = self.location_global_relative_frame.alt
 
     def stop_now(self):
-        # set mode to BRAKE
+        # we stop by BRAKEing
         self.set_mode("BRAKE")
 
     def set_heading(self, heading):

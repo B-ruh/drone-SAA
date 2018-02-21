@@ -45,7 +45,10 @@ class CoActor(Actor):
                 traceback.print_exc()
                 return
             if wobj is not None:
-                new_coros.append((wobj, coro))
+                if isinstance(wobj, Future):
+                    wobj._waiters.append(coro)
+                else:
+                    new_coros.append((wobj, coro))
 
         # 0th step: execute the call soon callbacks
         if isinstance(msg, CoActor.CallSoon):
@@ -59,7 +62,6 @@ class CoActor(Actor):
                 if hasattr(coro, 'send'):
                     send_coro(coro, None)
                 elif not inspect.iscoroutinefunction(coro):
-                    #print("called it!")
                     coro()
                 else:
                     send_coro(coro(), None)
@@ -89,8 +91,6 @@ class CoActor(Actor):
                 if mtype not in self._pending_coros:
                     self._pending_coros[mtype] = []
                 self._pending_coros[mtype].append(coro)
-            elif isinstance(wobj, Future):
-                wobj._waiters.append(coro)
             else:
                 raise Exception("weird coro: {}".format(coro))
 
@@ -154,11 +154,13 @@ class Future:
     def set_result(self, result):
         self.result = result
         self.has_result = True
+
         # unwait everybody who was waiting on us
         for waiter in self._waiters:
             self.actor.call_soon(waiter)
         self._waiters = []
 
     def __await__(self):
-        yield self
+        if not self.has_result:
+            yield self
         return self.result

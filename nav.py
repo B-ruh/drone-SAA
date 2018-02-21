@@ -58,8 +58,7 @@ class Navigation(CoActor):
         async def do_a_stop():
             await self.sleep(20)
             self.send(self.myAddress, DroneInDanger(True))
-            #await self.vehicle.wait_until('heading', lambda a: a < 300)
-            await self.sleep(5)
+            await self.vehicle.wait_until('heading', lambda h: h < 300)
             self.send(self.myAddress, DroneInDanger(False))
 
         self.call_soon(do_a_stop)
