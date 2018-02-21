@@ -10,11 +10,12 @@ import sense
 
 if __name__ == "__main__":
     # start up actor system
-    asys = ActorSystem("multiprocTCPBase")
+    asys = ActorSystem(systemBase="multiprocTCPBase",
+        capabilities={"nav_system": True})
 
     try:
         # instantiate navigation processor
-        nav = asys.createActor("nav.Navigation")
+        nav = asys.createActor("nav.Navigation", globalName="Navigation")
         # tell it to start up
         asys.tell(nav, Initialize())
 

@@ -13,6 +13,10 @@ class DroneInDanger:
         self.danger = danger
 
 class Navigation(CoActor):
+    @staticmethod
+    def actorSystemCapabilityCheck(capabilities, requirements=None):
+        return capabilities.get("nav_system", False)
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -55,13 +59,13 @@ class Navigation(CoActor):
         await self.takeoff()
 
         print("[NAV] Beginning main loop")
-        async def do_a_stop():
-            await self.sleep(20)
-            self.send(self.myAddress, DroneInDanger(True))
-            await self.vehicle.wait_until('heading', lambda h: h < 300)
-            self.send(self.myAddress, DroneInDanger(False))
+        #async def do_a_stop():
+        #    await self.sleep(20)
+        #    self.send(self.myAddress, DroneInDanger(True))
+        #    await self.vehicle.wait_until('heading', lambda h: h < 300)
+        #    self.send(self.myAddress, DroneInDanger(False))
 
-        self.call_soon(do_a_stop)
+        #self.call_soon(do_a_stop)
 
         while True:
             await self.wait_for_danger()

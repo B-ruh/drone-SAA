@@ -28,6 +28,10 @@ class PixhawkUpdateRequest:
         self.enable = enable
 
 class Pixhawk(CoActor):
+    @staticmethod
+    def actorSystemCapabilityCheck(capabilities, requirements=None):
+        return capabilities.get("nav_system", False)
+        
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
