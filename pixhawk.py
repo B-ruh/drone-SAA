@@ -7,6 +7,7 @@ from coactor import CoActor, Future
 from dronekit import VehicleMode
 from pymavlink import mavutil
 from functools import partial as curry
+import math
 
 from dk import *
 
@@ -122,12 +123,12 @@ class Pixhawk(CoActor):
                     0, 0, 0)
             self.send(self.dk_addr,
                 DronekitSendCommand("command_long", *mcmd))
-        elif cmd == "move_ned_body_offset":
+        elif cmd == "move_local":
             # send position command in NED space
             # relative to current position
             mcmd = (0,       # time_boot_ms (not used)
                 0, 0,    # target system, target component
-                mavutil.mavlink.MAV_FRAME_BODY_OFFSET_NED, # frame
+                msg.args[3], # frame
                 0b0000111111111000, # type_mask (only positions enabled)
                 msg.args[0], msg.args[1], msg.args[2],
                 0, 0, 0, # x, y, z velocity in m/s  (not used)
@@ -215,6 +216,10 @@ class VehicleProxy:
         for attr in ('parameters', 'gps_0', 'armed',
                 'mode', 'attitude'):
             await self.wait_for(attr)
+
+    async def wait_ready_ekf(self):
+        await self.wait_for('ekf_ok')
+        await self.wait_for('location_local_frame')
 
     async def wait_for(self, attr):
         """Wait for the specified attribute to be valid, i.e. it has
@@ -331,3 +336,85 @@ class VehicleProxy:
     def move_rel_body(self, forward, right, down):
         self.actor.send(self.pixhawk_addr,
             PixhawkProxyCommand("move_ned_body_offset", forward, right, down))
+
+    def goto_local(self, north, east, down):
+        """Go to the specified north, east, down position,
+          relative to home.
+
+        north, east, down: position, in meters
+
+        returns: the final position, relative to home, as
+          (north, east, down)
+        """
+
+        self.actor.send(self.pixhawk_addr,
+            PixhawkProxyCommand("move_local", north, east, down,
+                mavutil.mavlink.MAV_FRAME_LOCAL_NED))
+
+        return (north, east, down)
+
+    def goto_local_rel(self, north=0, east=0, down=0):
+        """Go to the specified north, east, down position,
+          relative to the drone.
+
+        north, east, down: position, in meters
+
+        returns: the final position, relative to home, as
+          (north, east, down)
+        """
+
+        self.actor.send(self.pixhawk_addr,
+            PixhawkProxyCommand("move_local", north, east, down,
+                mavutil.mavlink.MAV_FRAME_LOCAL_OFFSET_NED))
+
+        pos = self.location_local_frame
+        return (pos.north+north,
+            pos.east+east,
+            pos.down+down)
+
+    def move_local(self, forward=0, right=0, down=0):
+        """Move the specified amount forward, right, and down,
+           relative to the drone's current position and heading.
+
+        forward, right, down: amount, in meters
+
+        returns: the final position, relative to home, as
+            (north, east, down)
+        """
+
+        self.actor.send(self.pixhawk_addr,
+            PixhawkProxyCommand("move_local", forward, right, down,
+                mavutil.mavlink.MAV_FRAME_BODY_OFFSET_NED))
+
+        pos = self.location_local_frame
+        yaw = self.attitude.yaw
+
+        return (pos.north+forward*math.cos(yaw)-right*math.sin(yaw),
+            pos.east+forward*math.sin(yaw)+right*math.cos(yaw),
+            pos.down+down)
+
+    def is_close_to_local(self, pos, how_close=0.5):
+        """Returns True if the vehicle is close to the specified positon.
+
+        pos: the position, as (north, east, down) relative to home
+        how_close: how close is close, in meters
+        """
+
+        our_pos = self.location_local_frame
+        dist = math.sqrt((pos[0]-our_pos.north)**2 + 
+            (pos[1]-our_pos.east)**2+
+            (pos[2]-our_pos.down)**2)
+        print("dist: {}".format(dist))
+
+        return dist <= how_close
+
+    async def wait_until_close_to_local(self, pos, how_close=0.5):
+        """Waits until the vehicle is close to the specified position.
+
+        pos: the position, as (north, east, down) relative to home
+        how_close: how close is close, in meters
+        """
+
+        while not self.is_close_to_local(pos, how_close):
+            await self.wait_for_next('location.local_frame')
+

@@ -94,8 +94,8 @@ class Navigation(CoActor):
 
             print("[NAV] Moving beside the obstacle...")
             # do 5 meters forward or so by default
-            self.vehicle.move_rel_body(5, 0, 0)
-            await self.sleep(5) # wait for it to happen
+            pos = self.vehicle.move_local(forward=10)
+            await self.vehicle.wait_until_close_to_local(pos) # wait for it to happen
 
             print("[NAV] Okay, it's clear...")
             self.vehicle.set_mode("AUTO")

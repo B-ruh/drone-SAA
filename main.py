@@ -6,7 +6,6 @@ import time
 
 from dk import Dronekit
 from pixhawk import PixhawkStartDronekit
-import sense
 
 if __name__ == "__main__":
     # start up actor system
@@ -18,10 +17,6 @@ if __name__ == "__main__":
         nav = asys.createActor("nav.Navigation", globalName="Navigation")
         # tell it to start up
         asys.tell(nav, Initialize())
-
-        # start up sensor manager
-        sensor = sense.SensorManager()
-        sensor.start(nav, asys)
 
         # wait for certain messages
         while True:
