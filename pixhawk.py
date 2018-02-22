@@ -28,6 +28,8 @@ class PixhawkUpdateRequest:
         self.enable = enable
 
 class Pixhawk(CoActor):
+    """Actor that manages the Pixhawk flight controller."""
+
     @staticmethod
     def actorSystemCapabilityCheck(capabilities, requirements=None):
         # make sure we're started on an actor system that 
@@ -139,13 +141,42 @@ class Pixhawk(CoActor):
 # has methods to send commands to the Pixhawk manager as well
 # and can call callbacks when specific paramters are updated
 class VehicleProxy:
+    """Proxy for the dronekit Vehicle.
+
+    You may wish to consult http://python.dronekit.io/automodule.html
+    to get an idea of what attributes are available. Note that not
+    all are. Also note that dots in attribute names become underscores
+    when you get them from the proxy, but not when passed as strings
+    to function names!
+
+    To use:
+    * Instantiate the proxy: p = VehicleProxy(self, self.pixhawk_addr)
+      where pixhawk_addr is the address of the Pixhawk actor and self
+      is the actor that will own the proxy
+    * Enable update messages from the Pixhawk actor by sending
+      it the message PixhawkUpdateRequest(True)
+    * Call p.process_update(msg, sender) with the msg and sender of all
+      PixhawkUpdate messages received
+    """
+
     def __init__(self, actor, pixhawk_addr):
+        """Initialize the proxy.
+
+        actor: actor object of the proxy owner, usually self
+        pixhawk_addr: actor address of the Pixhawk addr
+        """
         self.actor = actor
         self.pixhawk_addr = pixhawk_addr
         self._callbacks = []
         self._attr_updated = {}
 
     async def process_update(self, msg, sender):
+        """Process an update message.
+
+        Call this function with the msg and sender for every
+        PixhawkUpdate message the proxy owner receives.
+        """
+
         if msg.attr_name == None and isinstance(msg.value, dict):
             # it's a bulk attribute update
             for attr, value in msg.value.items():
@@ -168,14 +199,31 @@ class VehicleProxy:
         self._callbacks = cb
 
     def register_cb(self, attr_name, fn, once=False):
+        """Register a callback for attribute changes.
+
+        attr_name: the name of the attribute
+        fn: the function called. Called like fn(attr_name, value) where
+          attr_name is the name of the attribute and value is its new value.
+        once: if True, the callback is only called once
+        """
+
         self._callbacks.append((attr_name, fn, once))
 
     async def wait_ready(self):
+        """Wait for the drone to be ready."""
+
+        # same commands as in DroneKit
         await self.wait_for(('parameters', 'gps_0', 'armed',
             'mode', 'attitude'))
 
-    # wait for the specified attributes to be valid
     async def wait_for(self, attrs=None):
+        """Wait for the specified attributes to be valid, i.e. they have
+          a value and so can be retrieved.
+
+        attrs: either a str containing one attribute name, or an iterable
+          of strs of attribute names
+        """
+
         if isinstance(attrs, str):
             attrs = (attrs,)
 
@@ -205,6 +253,15 @@ class VehicleProxy:
 
     # wait for the next update for the specified attributes
     async def wait_for_next(self, attrs=None):
+        """Wait for the next update for the specified attributes.
+
+        Note that an update does not necessarily mean the attribute value
+        is different.
+
+        attrs: either a str containing one attribute name, or an iterable
+          of such        
+        """
+
         if isinstance(attrs, str):
             attrs = (attrs,)
 
@@ -214,6 +271,16 @@ class VehicleProxy:
         await self.wait_for(attrs)
 
     async def wait_until(self, attr, fn):
+        """Wait until the specified attribute meets some criterion.
+
+        attr: name of the attribute
+        fn: the criterion function. Called like fn(value), where value
+          is the next value of the attribute. If it returns True, the
+          wait is over.
+
+        Note that the criterion function may be called multiple times
+        with the same value.
+        """
         if attr not in self._attr_updated:
             await self.wait_for_next(attr)
         ga = attr.replace(".", "_")
