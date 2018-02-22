@@ -83,10 +83,12 @@ class Navigation(CoActor):
             while heading > 0:
                 heading -= 10
                 self.vehicle.set_heading(heading % 360)
+                # wait until we get to the specified heading
                 await self.vehicle.wait_until('heading',
                     # will mess up around a circle
                     # but fine for testing
                     lambda h: h-(heading%360) < 2)
+                # updated by receiving the DroneInDanger message
                 if not self.in_danger:
                     break
 

@@ -6,7 +6,11 @@ from datetime import timedelta
 import inspect
 
 class CoActor(Actor):
-    # class that yields message information when awaited
+    """CoActor is a subclass of Thespian's Actor which emulates an event
+    loop to support coroutines based on incoming messages.
+
+    Refer to the methods for the features this enables.
+    """
     class MessageWaiter:
         def __init__(self, mtype):
             self.mtype = mtype
@@ -87,8 +91,9 @@ class CoActor(Actor):
                 was_handled = True
                 # call the callback and get a coroutine
                 coro = cb(msg, sender)
-                # now send to it to get it running
-                send_coro(coro, None)
+                if hasattr(coro, 'send'):
+                    # now send to it to get it running
+                    send_coro(coro, None)
 
         # second step: see if any coros were waiting on that message
         mtype = type(msg)
@@ -114,13 +119,28 @@ class CoActor(Actor):
             print("{} didn't handle: {}, {}".format(self.myAddress, msg, sender))
 
     def register_cb(self, mtype, cb):
+        """Register a callback which is called when the
+        desired type of message is received.
+
+        mtype: The type of message. Received message msg is considered the same
+          type when isinstance(msg, mtype) is True.
+
+        cb: The callback to call. It's called like cb(msg, sender) where msg
+          is the received message and sender is the address of the actor
+          that sent it. The callback can either be a coroutine or regular
+          function.
+        """
+
         self._callbacks.append((mtype, cb))
 
     def unregister_cb(self, mtype, cb):
+        """Unregister a callback registered with register_cb."""
+
         self._callbacks.remove((mtype, cb))
 
-    # sleep for a specified number of seconds asynchronously
     async def sleep(self, seconds):
+        """Asynchronously sleep for a specified number of seconds."""
+
         # instantiate new message waiter that waits for a WakeupMessage
         w = CoActor.MessageWaiter(WakeupMessage)
         # schedule a wakeup to be sent in the specified seconds
@@ -131,11 +151,19 @@ class CoActor(Actor):
             # make sure it's for this wakeup
             if msg.payload == w: break
 
-    # wait for a specific message type asynchronously
-    # optionally pass a validator function that takes the
-    # message and sender and returns True if it is indeed the message
-    # that is being waited for
     async def wait_msg(self, mtype, validator=None):
+        """Asynchronously wait for a specific type of message.
+
+        mtype: The type of message. Received message msg is considered the same
+          type when isinstance(msg, mtype) is True.
+
+        validator: If not None, an additional function to validate the
+          received message. Called like validator(msg, sender), where msg
+          is the received message and sender is the address of the actor
+          that sent it. If validator(msg, sender) == True and the message
+          is the same type, the wait is over.
+        """
+
         # wait for the message type
         w = CoActor.MessageWaiter(mtype)
         while True:
@@ -145,10 +173,16 @@ class CoActor(Actor):
             if validator is None or validator(msg, sender):
                 return msg, sender
 
-    # schedule a coroutine to be called
-    def call_soon(self, coro):
+    def call_soon(self, fn):
+        """Call a function soon.
+
+        fn: The function to be called. Called with no arguments.
+          Can be a regular function, coroutine function, or 
+          coroutine object.
+        """
+
         # append it to call soon list
-        self._call_soon.append(coro)
+        self._call_soon.append(fn)
         # and send a call soon message to trigger the call,
         # (assuming we haven't sent one since the last time)
         # as call soon routines are only called when any message
@@ -157,19 +191,53 @@ class CoActor(Actor):
             self._call_soon_sent = True
             self.send(self.myAddress, CoActor.CallSoon())
 
-# basic implementation of futures for CoActors
-# set its result to alert all waiters
-# await it to get its result
+class FutureInvalidState(Exception):
+    """Exception raised when an invalid operation is performed on a Future."""
+
+    pass
+
 class Future:
+    """Basic Future implementation for CoActors
+
+    * Instantiate with fut = Future(actor).
+      actor: the actor that instantiated the future
+
+    * Wait for it to have a result like result = await fut.
+      Only coroutines within the actor that instantiated the future can
+      await the future.
+
+    * Check if it has a result with fut.has_result.
+      Get the result with fut.result.
+
+    * Set the result with fut.set_result(something)
+      Gives result to all coroutines awaiting on the future.
+      Once result is set, trying to set another result throws
+      FutureInvalidState.
+    """
+
     def __init__(self, actor):
+        """Initialize the future.
+
+        actor: CoActor object the future is associated with.
+          Only coroutines within that CoActor can await on the future.
+        """
+
         self.actor = actor
         self._waiters = []
 
         self.has_result = False
         self.result = None
 
-    # tell the future the result
     def set_result(self, result):
+        """Set the result of the future.
+
+        Unwaits all coroutines that were waiting on the result.
+        Throws FutureInvalidState if the result has already been set.
+        """
+
+        if self.has_result:
+            raise FutureInvalidState()
+
         self.result = result
         self.has_result = True
 

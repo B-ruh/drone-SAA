@@ -44,9 +44,7 @@ class Dronekit:
         self.hsys = None
 
         # get our own private connection to the actor system
-        self.psys = sys.private()
-        # it's a context manager, so enter it to get the interactable object
-        self.psys = self.psys.__enter__()
+        self.psys = sys.private().__enter__()
 
         # send message saying we're ready
         self.psys.tell(self.actor, DronekitReady())
@@ -56,7 +54,6 @@ class Dronekit:
         # observe EVERYTHING!!!
         self.vehicle.add_attribute_listener('*', self.attr_handler)
         self.vehicle.initialize(4, 30)
-        
 
         # and enter receive loop
         while True:
