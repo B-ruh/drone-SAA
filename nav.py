@@ -78,8 +78,8 @@ class Navigation(CoActor):
 
             print("[NAV] Stopped, looking around")
             self.vehicle.set_mode("GUIDED")
-            await self.vehicle.wait_for_next('heading')
-            heading = self.vehicle.heading
+            heading = await self.vehicle.wait_for_next('heading')
+
             while heading > 0:
                 heading -= 10
                 self.vehicle.set_heading(heading % 360)

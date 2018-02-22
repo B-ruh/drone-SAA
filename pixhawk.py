@@ -212,87 +212,99 @@ class VehicleProxy:
     async def wait_ready(self):
         """Wait for the drone to be ready."""
 
-        # same commands as in DroneKit
-        await self.wait_for(('parameters', 'gps_0', 'armed',
-            'mode', 'attitude'))
+        for attr in ('parameters', 'gps_0', 'armed',
+                'mode', 'attitude'):
+            await self.wait_for(attr)
 
-    async def wait_for(self, attrs=None):
-        """Wait for the specified attributes to be valid, i.e. they have
+    async def wait_for(self, attr):
+        """Wait for the specified attribute to be valid, i.e. it has
           a value and so can be retrieved.
 
-        attrs: either a str containing one attribute name, or an iterable
-          of strs of attribute names
+        attr: the name of the attribute
+
+        returns: the attribute's new value
         """
 
-        if isinstance(attrs, str):
-            attrs = (attrs,)
+        # check if it's already valid
+        if self._attr_updated.get(attr, False):
+            # return its value
+            return getattr(self, attr.replace(".", "_"))
 
-        # helper to make a callback for the future
-        # needed because closing over a loop variable only uses the 
-        # last iteration's value
-        def make_wait_cb(fut):
-            def wait_cb(a, v):
-                fut.set_result((a, v))
-            return wait_cb
+        # it's not, wait on it
+        return await self.wait_for_next(attr)
 
-        futs = []
-        for attr in attrs:
-            # is this one already ready? if so, continue
-            if self._attr_updated.get(attr, False): continue
-            # create a Future for this attribute
-            fut = Future(self.actor)
-            # that will get its result when the attribute comes in
-            self.register_cb(attr, make_wait_cb(fut), True)
-            futs.append(fut)
+    async def wait_for_next(self, attr):
+        """Wait for an update to the specified attribute.
 
-        # now wait for all the futures to have a result
-        # -> all the results have come in
-        for fut in futs:
-            if fut.has_result: continue
-            await fut
+        Note that an update does not necessarily mean that the attribute's
+        value will be any different.
 
-    # wait for the next update for the specified attributes
-    async def wait_for_next(self, attrs=None):
-        """Wait for the next update for the specified attributes.
+        attr: the name of the attribute
 
-        Note that an update does not necessarily mean the attribute value
-        is different.
-
-        attrs: either a str containing one attribute name, or an iterable
-          of such        
+        returns: the attribute's new value
         """
 
-        if isinstance(attrs, str):
-            attrs = (attrs,)
+        fut = Future(self.actor)
 
-        for attr in attrs:
-            self._attr_updated[attr] = False
+        # register callback so that hwen the future is updated
+        # its result is set
+        self.register_cb(attr, lambda a, v: fut.set_result(v), once=True)
 
-        await self.wait_for(attrs)
+        # then wait on the future (and return the value which is its result)
+        return await fut
 
-    async def wait_until(self, attr, fn):
+    async def wait_for_new(self, attr):
+        """Wait for the specified attribute to have a new value.
+
+        attr: the name of the attribute
+
+        returns: the attribute's new value
+        """
+
+        # check if it exists
+        if self._attr_updated.get(attr, False):
+            # it doesn't, so just wait until it does
+            return await self.wait_for_next(attr)
+
+        # it does, so get its value
+        old_value = getattr(self, attr.replace(".", "_"))
+        # and wait for it to change
+        value = old_value
+        while value == old_value:
+            value = await self.wait_for_next(attr)
+
+        return value
+
+    async def wait_until(self, attr, fn, new=True):
         """Wait until the specified attribute meets some criterion.
 
         attr: name of the attribute
         fn: the criterion function. Called like fn(value), where value
-          is the next value of the attribute. If it returns True, the
+          is the new value of the attribute. If it returns True, the
           wait is over.
+        new: if True, fn is only evaluated when the attribute changes
+          if False, it's evaluated every time the attribute gets an update
 
-        Note that the criterion function may be called multiple times
-        with the same value.
+        returns: the new value of the attribute
         """
+
+        wf = self.wait_for_next
+        if new:
+            wf = self.wait_for_new
+
         if attr not in self._attr_updated:
-            await self.wait_for_next(attr)
+            value = await wf(attr)
         ga = attr.replace(".", "_")
         while not fn(getattr(self, ga)):
-            await self.wait_for_next(attr)
+            value = await wf(attr)
+
+        return value
 
     async def arm_motors(self, arm):
         self.actor.send(self.pixhawk_addr,
             PixhawkProxyCommand("arm", arm))
 
-        while self.armed != arm:
-            await self.wait_for_next('armed')
+        await self.wait_until('armed', lambda v: v == arm)
 
     def set_mode(self, mode):
         self.actor.send(self.pixhawk_addr,
