@@ -32,7 +32,7 @@ source py_env/bin/activate
 
 You can now work on installing the other software. Remember to always `source ~/drone_software/py_env/bin/activate` before installing any Python libraries or running any Python code. If you are done, simply type `deactivate` to return to using the system Python.
 
-## Installing pyrealsense
+## Installing pyrealsense (for R200)
 
 Begin by installing the legacy RealSense SDK (which supports the R200 camera and pyrealsense)
 
@@ -41,7 +41,9 @@ cd ~/drone_software/
 
 # download the RealSense SDK from Github
 git clone https://github.com/IntelRealSense/librealsense/
-cd librealsense/
+cp -R librealsense librealsense2/
+mv librealsense librealsense1/
+cd librealsense1/
 # select the latest legacy version
 git checkout v1.12.1
 
@@ -127,5 +129,19 @@ python3 setup.py install
 
 # install the DroneKit simulator
 pip3 install dronekit-sitl # may error, ignore it
+
+```
+
+## Installing drone-SAA
+
+```# prepare environment
+cd ~/drone_software/
+source py_env/bin/activate
+
+# install dependencies
+pip3 install thespian
+
+# clone it
+git clone https://github.com/tpwatson-uni/drone-SAA/
 
 ```
