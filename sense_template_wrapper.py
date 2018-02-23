@@ -15,9 +15,9 @@ nav = None
 if __name__ == "__main__":
     try:
         try:
-            dummy = sys.argv[1] != "for_real"
+            dummy = sys.argv[1] != "testing"
         except:
-            dummy = True
+            dummy = False
 
         if dummy:
             asys = ActorSystem(systemBase="multiprocTCPBase",
