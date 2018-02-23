@@ -404,7 +404,6 @@ class VehicleProxy:
         dist = math.sqrt((pos[0]-our_pos.north)**2 + 
             (pos[1]-our_pos.east)**2+
             (pos[2]-our_pos.down)**2)
-        print("dist: {}".format(dist))
 
         return dist <= how_close
 

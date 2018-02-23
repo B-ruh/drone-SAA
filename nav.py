@@ -93,12 +93,18 @@ class Navigation(CoActor):
                     break
 
             print("[NAV] Moving beside the obstacle...")
-            # do 5 meters forward or so by default
+            # do 10 meters forward or so by default
             pos = self.vehicle.move_local(forward=10)
-            await self.vehicle.wait_until_close_to_local(pos) # wait for it to happen
+            while not self.vehicle.is_close_to_local(pos):
+                if self.in_danger:
+                    print("[NAV] Oh no! There it is again!")
+                    self.vehicle.stop_now()
+                    break
+                await self.vehicle.wait_for_next('location.local_frame')
 
-            print("[NAV] Okay, it's clear...")
-            self.vehicle.set_mode("AUTO")
+            if not self.in_danger:
+                print("[NAV] Okay, it's clear...")
+                self.vehicle.set_mode("AUTO")
 
     async def takeoff(self):
         #print("[NAV] Waiting for vehicle to be armable")
