@@ -300,6 +300,7 @@ class VehicleProxy:
         if attr not in self._attr_updated:
             value = await wf(attr)
         ga = attr.replace(".", "_")
+        value = getattr(self, ga)
         while not fn(getattr(self, ga)):
             value = await wf(attr)
 
