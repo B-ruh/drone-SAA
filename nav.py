@@ -80,8 +80,10 @@ class Navigation(CoActor):
             self.vehicle.set_mode("GUIDED")
             heading = await self.vehicle.wait_for_next('heading')
 
-            while heading > 0:
+            amount_rotated = 0
+            while amount_rotated <= 360:
                 heading -= 10
+                amount_rotated += 10
                 self.vehicle.set_heading(heading % 360)
                 # wait until we get to the specified heading
                 await self.vehicle.wait_until('heading',
@@ -89,6 +91,7 @@ class Navigation(CoActor):
                     # but fine for testing
                     lambda h: h-(heading%360) < 2)
                 # updated by receiving the DroneInDanger message
+
                 if not self.in_danger:
                     break
 
