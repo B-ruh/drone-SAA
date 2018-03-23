@@ -60,7 +60,7 @@ def main(asys, nav):
                 for xx in range(0,5,1):
                     #print("%1.1f " % npDepth3[xx, yy], end=" ")
                     #if (3.0 > npDepth3[xx, yy] and npDepth3[xx, yy] > 0.3):
-                    if (1.0 > npDepth3[xx, yy]):
+                    if (2.7 > npDepth3[xx, yy]):
                         print("DRONE IN DANGER DRONE IN DANGER DRONE IN DANGER")
                         print("DRONE IN DANGER DRONE IN DANGER DRONE IN DANGER")
                         print("DRONE IN DANGER DRONE IN DANGER DRONE IN DANGER")
