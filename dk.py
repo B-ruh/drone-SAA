@@ -50,7 +50,7 @@ class Dronekit:
         self.psys.tell(self.actor, DronekitReady())
 
         # start dronekit
-        self.vehicle = connect(connection_string, _initialize=False)
+        self.vehicle = connect(connection_string, _initialize=False, baud=57600) #CHANGED self.vehicle = connect(connection_string, _initialize=False)
         # observe EVERYTHING!!!
         self.vehicle.add_attribute_listener('*', self.attr_handler)
         self.vehicle.initialize(4, 30)

@@ -56,8 +56,10 @@ class Navigation(CoActor):
     async def nav(self):
         await self.vehicle.wait_ready()
         print("[NAV] Testing liftoff")
-        await self.takeoff()
-
+        #await self.takeoff() #CHANGED
+        await self.vehicle.wait_until('mode', lambda m: m.name == 'AUTO')
+	# waits for AUTO mode to run avoidance
+	
         print("[NAV] Beginning main loop")
         #async def do_a_stop():
         #    await self.sleep(20)

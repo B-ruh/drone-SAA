@@ -1,3 +1,22 @@
+'''
+from nav import DroneInDanger
+import time
+
+def main(asys, nav):
+    asys.tell(nav, DroneInDanger(False))
+
+    while True:
+        print("press ENTER to see an obstacle")
+        input()
+        print("Seeing it for 5 seconds")
+        asys.tell(nav, DroneInDanger(True))
+
+        print("press ENTER to make it go away")
+        input()
+        asys.tell(nav, DroneInDanger(False))
+print("ok it's gone")
+'''
+
 #########################
 ## Sensor Controller   ##
 #########################
@@ -8,6 +27,7 @@ import numpy as np
 
 from nav import DroneInDanger
 import time
+import datetime
 
 #distance sensitivity
 #sen = 2300  #about 9'
@@ -16,7 +36,7 @@ sen = 300  #about 3"
 
 #print("START REALSENSE")
 print("START REALSENSE for %s mm(ish) "  % (sen))
-
+print(datetime.datetime.now())
 class SensorController:
     def __init__(self, mat):
         self.data = mat
@@ -90,6 +110,7 @@ def main(asys, nav):
             #print("in while")
             # This call waits until a new coherent set of frames is available on a device
             # Calls to get_frame_data(...) and get_frame_timestamp(...) on a device will return stable values until wait_for_frames(...) is called
+            print(datetime.time.now())
             frames = pipeline.wait_for_frames()
             depth = frames.get_depth_frame()
 
@@ -119,34 +140,23 @@ def main(asys, nav):
             sc.filterSuperPix(1)
             #print("filrered")
             #sc.printShape()
-
-            inDanger = False
+            print(datetime.time.now())
             for yy in range(0,sc.getDimY(),1):
-                if not inDanger:
-                    for xx in range(0,sc.getDimX(),1):
-                        #print("%1.1f " % npDepth3[xx, yy], end=" ")
-                        #print("%1.1f " % sc.__getitem__()[xx, yy], end=" ")
-                        #if (3.0 > npDepth3[xx, yy] and npDepth3[xx, yy] > 0.3):
-                        z=sc.__getitem__()[xx, yy]
+                for xx in range(0,sc.getDimX(),1):
+                    #print("%1.1f " % npDepth3[xx, yy], end=" ")
+                    #print("%1.1f " % sc.__getitem__()[xx, yy], end=" ")
+                    #if (3.0 > npDepth3[xx, yy] and npDepth3[xx, yy] > 0.3):
+                    z=sc.__getitem__()[xx, yy]
                     if (z < sen):
-                        #print("Obstacle!! %s at %s %s"  % (z, xx, yy))
-                        #asys.tell(nav, DroneInDanger(True))
-                        inDanger = True
-                        break
+                        #print(datetime.datetime.now())
+                        print("Obstacle!! %s at %s %s"  % (z, xx, yy))
+                        asys.tell(nav, DroneInDanger(True))
+                        #print(datetime.datetime.now())
                     else :
-                        #asys.tell(nav, DroneInDanger(False))
+                        asys.tell(nav, DroneInDanger(False))
                         continue
-                else:
-                    break
                         #print()
                 #print('\n\n')
-
-            if inDanger:
-                print("Obstacle!! %s at %s %s"  % (z, xx, yy))
-                asys.tell(nav, DroneInDanger(True))
-            else:
-                asys.tell(nav, DroneInDanger(False))
-
         exit(0)
     #except rs.error as e:
     #    # Method calls agaisnt librealsense objects may throw exceptions of type pylibrs.error
